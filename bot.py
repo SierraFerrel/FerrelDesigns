@@ -15,6 +15,7 @@ BLUE = 0x3B82F6
 SILVER = 0xC0C4CC
 
 WELCOME_CHANNEL_ID = 1558404692466335807
+NEW_INQUIRIES_CHANNEL_ID = 1558704116581273722
 
 print("FERREL DESIGNS UPDATED CODE IS LOADING")
 
@@ -42,6 +43,8 @@ class FerrelDesignsBot(commands.Bot):
 
 intents = discord.Intents.default()
 intents.members = True
+intents.message_content = True
+
 
 bot = FerrelDesignsBot(
     command_prefix="!",
@@ -60,6 +63,7 @@ class QuotePanelView(discord.ui.View):
         custom_id="ferrel_quote_request"
     )
    
+    
     async def request_quote(
         self,
         interaction: discord.Interaction,
@@ -75,7 +79,6 @@ class QuotePanelView(discord.ui.View):
             )
             return
 
-        # Check whether this member already has an open inquiry.
         existing = discord.utils.get(
             guild.text_channels,
             topic=f"ferrel_quote_user:{member.id}"
@@ -88,7 +91,6 @@ class QuotePanelView(discord.ui.View):
             )
             return
 
-        # Set up private channel permissions.
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(
                 view_channel=False
@@ -109,7 +111,6 @@ class QuotePanelView(discord.ui.View):
                 manage_channels=True
             )
 
-        # Let server administrators access the inquiry.
         for role in guild.roles:
             if role.permissions.administrator:
                 overwrites[role] = discord.PermissionOverwrite(
@@ -123,6 +124,8 @@ class QuotePanelView(discord.ui.View):
             thinking=True
         )
 
+        channel = None
+
         try:
             channel = await guild.create_text_channel(
                 name=f"quote-{member.name}".lower()[:90],
@@ -131,49 +134,161 @@ class QuotePanelView(discord.ui.View):
                 reason=f"Quote inquiry opened by {member}"
             )
 
-            embed = make_embed(
-                "Your Project Inquiry 💜💙",
-                (
-                    f"Welcome, {member.mention}! Thanks for reaching out.\n\n"
-                    "**1. Community:** What is your server for?\n"
-                    "**2. Current setup:** Is this a new or existing server?\n"
-                    "**3. Features:** What roles, channels, bots, applications, "
-                    "tickets, or workflows do you need?\n"
-                    "**4. Style:** What branding, colors, or examples do you like?\n"
-                    "**5. Budget:** Which package or budget range are you considering?\n"
-                    "**6. Timeline:** When would you like the project completed?\n\n"
-                    "You can answer in one message or respond to each question "
-                    "at your own pace. I'll review your needs and discuss the "
-                    "price and timeline before any work begins.\n\n"
-                    "🔒 **Never share passwords, bot tokens, or login credentials.**"
-                ),
-                PURPLE
-            )
-
-            await channel.send(embed=embed)
-
             await interaction.followup.send(
                 f"Your private inquiry is ready: {channel.mention}",
                 ephemeral=True
             )
 
-        except discord.Forbidden:
-            await interaction.followup.send(
-                "I couldn't create your inquiry channel. Please check "
-                "the bot's channel permissions and try again.",
-                ephemeral=True
+            await channel.send(
+                f"Welcome, {member.mention}! 💜💙\n\n"
+                "I'll guide you through a few questions, one at a time, "
+                "so I can understand your project and prepare a quote.\n"
+                "Please answer each question in this channel. "
+                "You have 10 minutes to answer each one."
             )
+
+            questions = [
+                (
+                    "1 of 6 — Your Community",
+                    "What is your community or Discord server about? "
+                    "For example, a FiveM roleplay server, gaming community, "
+                    "business, or creator community."
+                ),
+                (
+                    "2 of 6 — Current Setup",
+                    "Do you need a brand-new Discord server, or do you "
+                    "already have a server you want me to improve? "
+                    "If it already exists, what would you like changed?"
+                ),
+                (
+                    "3 of 6 — Features",
+                    "What would you like included? For example, categories, "
+                    "channels, roles, permissions, applications, tickets, "
+                    "bots, automation, staff departments, or documentation."
+                ),
+                (
+                    "4 of 6 — Branding and Style",
+                    "Do you have existing logos, colors, or branding? "
+                    "Describe the look you want, or share any visual "
+                    "references in this channel."
+                ),
+                (
+                    "5 of 6 — Budget",
+                    "Which budget range are you considering? My packages "
+                    "start at $40 for Foundation, $75 for Professional, "
+                    "and $100+ for Custom. You can also tell me if "
+                    "you're unsure and would like a recommendation."
+                ),
+                (
+                    "6 of 6 — Timeline",
+                    "When would you ideally like the project completed? "
+                    "Please include a target date or approximate timeframe."
+                )
+            ]
+
+            answers = []
+
+            for title, question in questions:
+                await channel.send(
+                    embed=make_embed(title, question, PURPLE)
+                )
+
+                def check(message):
+                    return (
+                        message.author.id == member.id
+                        and message.channel.id == channel.id
+                        and not message.author.bot
+                    )
+
+                try:
+                    answer = await bot.wait_for(
+                        "message",
+                        check=check,
+                        timeout=600
+                    )
+                except asyncio.TimeoutError:
+                    await channel.send(
+                        f"{member.mention}, I haven't received an answer "
+                        "within 10 minutes, so I'll pause the intake here. "
+                        "Please contact me in this channel when you're "
+                        "ready to continue."
+                    )
+                    return
+
+                answers.append(answer.content.strip() or "[No text provided]")
+
+            summary = make_embed(
+                "New Project Inquiry 📋",
+                (
+                    f"**Client:** {member.mention}\n"
+                    f"**Discord:** {member}\n"
+                    f"**Private inquiry:** {channel.mention}\n\n"
+                    "The client has completed all six intake questions. "
+                    "Review their answers below and follow up before "
+                    "confirming a package or price."
+                ),
+                PURPLE
+            )
+
+            field_names = [
+                "Community",
+                "Current Setup",
+                "Requested Features",
+                "Branding & Style",
+                "Budget",
+                "Timeline"
+            ]
+
+            for name, answer in zip(field_names, answers):
+                # Discord embed fields have a 1024-character limit.
+                summary.add_field(
+                    name=name,
+                    value=answer[:1024],
+                    inline=False
+                )
+
+            summary.set_footer(
+                text="Ferrel Designs | Designed for your community. Built to work."
+            )
+
+            inquiries_channel = guild.get_channel(
+                NEW_INQUIRIES_CHANNEL_ID
+            )
+
+            if inquiries_channel is None:
+                inquiries_channel = await bot.fetch_channel(
+                    NEW_INQUIRIES_CHANNEL_ID
+                )
+
+            await inquiries_channel.send(embed=summary)
+
+            await channel.send(
+                f"Thank you, {member.mention}! 🎉 You've completed "
+                "the initial project questions. I've sent your inquiry "
+                "to the Ferrel Designs project review channel. "
+                "I'll review your details and follow up here about "
+                "scope, pricing, and next steps."
+            )
+
+        except discord.Forbidden:
+            message = (
+                "I couldn't complete the intake because I lack a required "
+                "Discord permission. Please check my channel permissions."
+            )
+            if channel is not None:
+                await channel.send(message)
+            else:
+                await interaction.followup.send(message, ephemeral=True)
 
         except Exception as error:
             print(
-                f"Quote channel creation failed: "
-                f"{type(error).__name__}: {error}"
+                f"Quote intake failed: {type(error).__name__}: {error}"
             )
-            await interaction.followup.send(
-                "Something went wrong while creating your inquiry. "
-                "Please try again later.",
-                ephemeral=True
-            )
+            if channel is not None:
+                await channel.send(
+                    "Something went wrong while processing this inquiry. "
+                    "I've logged the error so the issue can be investigated."
+                )
 
 
 @bot.event
