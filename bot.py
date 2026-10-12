@@ -13,6 +13,7 @@ PURPLE = 0x7B3FF2
 BLUE = 0x3B82F6
 SILVER = 0xC0C4CC
 
+print("FERREL DESIGNS UPDATED CODE IS LOADING")
 
 class FerrelDesignsBot(commands.Bot):
     async def setup_hook(self):
