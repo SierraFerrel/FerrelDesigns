@@ -340,12 +340,12 @@ class QuotePanelView(discord.ui.View):
         await channel.send(
             f"Welcome, {member.mention}! 💜💙\n\n"
             "I'll guide you through a few questions, one at a time, "
-        "so I can understand your project and prepare a quote.\n"
-        "Please answer each question in this channel. "
-        "You have 10 minutes to answer each one.\n\n"
-        "If you decide not to continue, you can close this inquiry "
-        "using the button below or by typing `$close`.",
-        view=CloseInquiryView()
+            "so I can understand your project and prepare a quote.\n"
+            "Please answer each question in this channel. "
+            "You have 10 minutes to answer each one.\n\n"
+            "If you decide not to continue, you can close this inquiry "
+            "using the button below or by typing `$close`.",
+            view=CloseInquiryView()
         )
 
 
