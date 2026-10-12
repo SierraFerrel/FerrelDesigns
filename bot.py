@@ -80,14 +80,17 @@ async def post_welcome(interaction: discord.Interaction):
         "Welcome to Ferrel Designs 💜💙",
         (
             "Your community deserves a Discord server "
-            "that looks good and works well.\n\n"
-            "We design organized, ready-to-use Discord communities "
-            "with thoughtful roles, permissions, workflows, and branding.\n\n"
-            "**Explore the server:**\n"
-            "🛠️ Check out our services\n"
-            "💰 Review our pricing\n"
+            "that looks great and works well.\n\n"
+            "I'm here to help you build an organized, ready-to-use "
+            "Discord server tailored to your community's needs. "
+            "From roles and permissions to bots, automation, and branding, "
+            "I want to make managing your community easier.\n\n"
+            "**Explore my services:**\n"
+            "🛠️ See what I offer\n"
+            "💰 Review my pricing\n"
             "📝 Request a project quote\n\n"
-            "Designed for your community. Built to work."
+            "I'm excited to hear about your project and help bring "
+            "your vision to life!"
         ),
         PURPLE
     )
