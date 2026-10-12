@@ -13,9 +13,29 @@ PURPLE = 0x7B3FF2
 BLUE = 0x3B82F6
 SILVER = 0xC0C4CC
 
+
+class FerrelDesignsBot(commands.Bot):
+    async def setup_hook(self):
+        print("Starting Ferrel Designs command synchronization...")
+
+        try:
+            synced = await self.tree.sync()
+            print(f"SUCCESS: Synced {len(synced)} global slash commands.")
+
+            for command in synced:
+                print(f"Registered command: /{command.name}")
+
+        except Exception as error:
+            print(
+                f"COMMAND SYNC FAILED: "
+                f"{type(error).__name__}: {error}"
+            )
+            raise
+
+
 intents = discord.Intents.default()
 
-bot = commands.Bot(
+bot = FerrelDesignsBot(
     command_prefix="!",
     intents=intents
 )
@@ -25,12 +45,6 @@ bot = commands.Bot(
 async def on_ready():
     print(f"Ferrel Designs bot is online as {bot.user}")
 
-    try:
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash commands.")
-    except Exception as error:
-        print(f"Could not sync slash commands: {error}")
-
 
 def make_embed(title, description, color):
     embed = discord.Embed(
@@ -38,7 +52,9 @@ def make_embed(title, description, color):
         description=description,
         color=color
     )
-    embed.set_footer(text="Ferrel Designs | Designed for your community. Built to work.")
+    embed.set_footer(
+        text="Ferrel Designs | Designed for your community. Built to work."
+    )
     return embed
 
 
