@@ -2,7 +2,7 @@
 import os
 import io
 import asyncio
-
+import traceback
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -717,10 +717,9 @@ class QuotePanelView(discord.ui.View):
                 "scope, pricing, and next steps."
             )
 
-        except discord.Forbidden as error:
-            print(
-                f"QUOTE PERMISSION ERROR: {error!r}"
-            )
+          except discord.Forbidden as error:
+            print("QUOTE PERMISSION ERROR:")
+            traceback.print_exc()
 
             try:
                 if channel is not None:
