@@ -717,7 +717,7 @@ class QuotePanelView(discord.ui.View):
                 "scope, pricing, and next steps."
             )
 
-          except discord.Forbidden as error:
+        except discord.Forbidden as error:
             print("QUOTE PERMISSION ERROR:")
             traceback.print_exc()
 
