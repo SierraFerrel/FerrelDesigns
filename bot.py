@@ -16,9 +16,16 @@ PURPLE = 0x7B3FF2
 BLUE = 0x3B82F6
 SILVER = 0xC0C4CC
 
+RULES_MESSAGE_ID = 1559107562115170355
 WELCOME_CHANNEL_ID = 1558404692466335807
 NEW_INQUIRIES_CHANNEL_ID = 1558704116581273722
 COMPLETED_WORK_CHANNEL_ID = 1558704266363932682
+COMMUNITY_ROLE_ID = 1558706183508987966
+CLIENT_ROLE_ID = 1558706829461291038
+RULES_CHANNEL_ID = 1559102565013004398
+ACTIVE_TICKETS_CATEGORY_ID = 1559100928018350103
+RULES_REACTION = "💜"
+
 
 
 def make_embed(title, description, color=PURPLE):
@@ -62,6 +69,62 @@ bot = FerrelDesignsBot(
     command_prefix=["!", "$"],
     intents=intents
 )
+
+@bot.event
+async def on_raw_reaction_add(payload):
+    # Only process the official rules message in the rules channel
+    if payload.guild_id is None:
+        return
+
+    if payload.channel_id != RULES_CHANNEL_ID:
+        return
+
+    if payload.message_id != RULES_MESSAGE_ID:
+        return
+
+    if str(payload.emoji) != RULES_REACTION:
+        return
+
+    # Ignore reactions added by bots
+    if bot.user and payload.user_id == bot.user.id:
+        return
+
+    guild = bot.get_guild(payload.guild_id)
+    if guild is None:
+        return
+
+    member = payload.member
+    if member is None:
+        try:
+            member = await guild.fetch_member(payload.user_id)
+        except discord.NotFound:
+            return
+        except discord.HTTPException as error:
+            print(f"Could not fetch reacting member: {error}")
+            return
+
+    community_role = guild.get_role(COMMUNITY_ROLE_ID)
+    if community_role is None:
+        print("ERROR: Ferrel Community role was not found.")
+        return
+
+    if community_role in member.roles:
+        return
+
+    try:
+        await member.add_roles(
+            community_role,
+            reason="Accepted Ferrel Designs community rules"
+        )
+        print(f"Assigned Ferrel Community to {member}.")
+
+    except discord.Forbidden:
+        print(
+            "ERROR: Cannot assign Ferrel Community. "
+            "Check the bot's Manage Roles permission and role hierarchy."
+        )
+    except discord.HTTPException as error:
+        print(f"Could not assign Ferrel Community: {error}")
 
 
 async def close_inquiry_channel(
@@ -397,6 +460,26 @@ class QuotePanelView(discord.ui.View):
                 ephemeral=True
             )
             return
+            
+        community_role = guild.get_role(COMMUNITY_ROLE_ID)
+
+        if community_role is None:
+            await interaction.response.send_message(
+                "The community role is not configured correctly. "
+                "Please contact the server administrator.",
+                ephemeral=True
+            )
+            return
+
+        if community_role not in member.roles:
+            await interaction.response.send_message(
+                "💜 Before requesting a quote, please visit "
+                "#rules-and-vibes and react with 💜 to receive "
+                "the Ferrel Community role!",
+                ephemeral=True
+            )
+            return
+
 
         existing = discord.utils.get(
             guild.text_channels,
