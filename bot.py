@@ -224,38 +224,29 @@ async def close_inquiry_channel(
                 reason="Ferrel Designs inquiry closed"
             )
 
-        await channel.edit(
-            name=f"closed-{channel.name}"[:100],
-            topic=f"closed_ferrel_quote_user:{client_id}",
-            reason=f"Inquiry closed by {actor}"
-        )
-
         await channel.send(
             embed=make_embed(
                 "Inquiry Closed 🔒",
-                (
-                    f"This inquiry was closed by {actor.mention}.\n\n"
-                    "The conversation history has been preserved, and "
-                    "the transcript has been archived in "
-                    "#completed-projects."
-                    + (
-                        "\nA copy was also sent to the client."
-                        if dm_sent
-                        else "\nA client DM could not be sent."
-                    )
-                ),
-                SILVER
+                f"This inquiry was closed by {actor.mention}.\n\n"
+                "The conversation transcript has been preserved. "
+                "This channel will be deleted in 5 seconds. 💜"
             )
+        )
+
+        await asyncio.sleep(5)
+
+        await channel.delete(
+            reason=f"Ferrel Designs inquiry closed by {actor}"
         )
 
         return True
 
+    
     except Exception as error:
         print(
             f"CLOSE INQUIRY ERROR: {type(error).__name__}: {error}"
         )
         return False
-
 
 class CloseInquiryView(discord.ui.View):
     def __init__(self):
