@@ -4,6 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
@@ -17,8 +18,11 @@ WELCOME_CHANNEL_ID = 1558404692466335807
 
 print("FERREL DESIGNS UPDATED CODE IS LOADING")
 
+
 class FerrelDesignsBot(commands.Bot):
     async def setup_hook(self):
+        self.add_view(QuotePanelView())
+
         print("Starting Ferrel Designs command synchronization...")
 
         try:
@@ -34,7 +38,7 @@ class FerrelDesignsBot(commands.Bot):
                 f"{type(error).__name__}: {error}"
             )
             raise
-
+            
 
 intents = discord.Intents.default()
 intents.members = True
@@ -43,6 +47,133 @@ bot = FerrelDesignsBot(
     command_prefix="!",
     intents=intents
 )
+
+
+class QuotePanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Request a Quote",
+        style=discord.ButtonStyle.primary,
+        emoji="📝",
+        custom_id="ferrel_quote_request"
+    )
+   
+    async def request_quote(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        guild = interaction.guild
+        member = interaction.user
+
+        if guild is None or not isinstance(member, discord.Member):
+            await interaction.response.send_message(
+                "Please use this button inside the Ferrel Designs server.",
+                ephemeral=True
+            )
+            return
+
+        # Check whether this member already has an open inquiry.
+        existing = discord.utils.get(
+            guild.text_channels,
+            topic=f"ferrel_quote_user:{member.id}"
+        )
+
+        if existing:
+            await interaction.response.send_message(
+                f"You already have an open inquiry: {existing.mention}",
+                ephemeral=True
+            )
+            return
+
+        # Set up private channel permissions.
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(
+                view_channel=False
+            ),
+            member: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True
+            )
+        }
+
+        bot_member = guild.me
+        if bot_member:
+            overwrites[bot_member] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                manage_channels=True
+            )
+
+        # Let server administrators access the inquiry.
+        for role in guild.roles:
+            if role.permissions.administrator:
+                overwrites[role] = discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True
+                )
+
+        await interaction.response.defer(
+            ephemeral=True,
+            thinking=True
+        )
+
+        try:
+            channel = await guild.create_text_channel(
+                name=f"quote-{member.name}".lower()[:90],
+                topic=f"ferrel_quote_user:{member.id}",
+                overwrites=overwrites,
+                reason=f"Quote inquiry opened by {member}"
+            )
+
+            embed = make_embed(
+                "Your Project Inquiry 💜💙",
+                (
+                    f"Welcome, {member.mention}! Thanks for reaching out.\n\n"
+                    "**1. Community:** What is your server for?\n"
+                    "**2. Current setup:** Is this a new or existing server?\n"
+                    "**3. Features:** What roles, channels, bots, applications, "
+                    "tickets, or workflows do you need?\n"
+                    "**4. Style:** What branding, colors, or examples do you like?\n"
+                    "**5. Budget:** Which package or budget range are you considering?\n"
+                    "**6. Timeline:** When would you like the project completed?\n\n"
+                    "You can answer in one message or respond to each question "
+                    "at your own pace. I'll review your needs and discuss the "
+                    "price and timeline before any work begins.\n\n"
+                    "🔒 **Never share passwords, bot tokens, or login credentials.**"
+                ),
+                PURPLE
+            )
+
+            await channel.send(embed=embed)
+
+            await interaction.followup.send(
+                f"Your private inquiry is ready: {channel.mention}",
+                ephemeral=True
+            )
+
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't create your inquiry channel. Please check "
+                "the bot's channel permissions and try again.",
+                ephemeral=True
+            )
+
+        except Exception as error:
+            print(
+                f"Quote channel creation failed: "
+                f"{type(error).__name__}: {error}"
+            )
+            await interaction.followup.send(
+                "Something went wrong while creating your inquiry. "
+                "Please try again later.",
+                ephemeral=True
+            )
 
 
 @bot.event
@@ -102,6 +233,34 @@ def make_embed(title, description, color):
         text="Ferrel Designs | Designed for your community. Built to work."
     )
     return embed
+
+
+@bot.tree.command(
+    name="post-quote-panel",
+    description="Post the Ferrel Designs quote request panel."
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def post_quote_panel(interaction: discord.Interaction):
+    embed = make_embed(
+        "Let's Build Your Community 💜💙",
+        (
+            "Ready to give your Discord community a better setup?\n\n"
+            "Click the button below to open a private inquiry with me. "
+            "I'll learn about your project, discuss the features you need, "
+            "and provide a quote before any work begins.\n\n"
+            "**What to have ready:**\n"
+            "• Your community's purpose and vision\n"
+            "• Features and workflows you want\n"
+            "• Your preferred budget and timeline\n\n"
+            "Submitting an inquiry does not commit you to a purchase."
+        ),
+        PURPLE
+    )
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=QuotePanelView()
+    )
 
 
 @bot.tree.command(
