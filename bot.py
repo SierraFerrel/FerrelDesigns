@@ -681,6 +681,35 @@ class QuotePanelView(discord.ui.View):
                 embed=summary
             )
 
+            # Assign Ferrel Client without removing existing roles
+            client_role = guild.get_role(CLIENT_ROLE_ID)
+
+            if client_role is None:
+                print("ERROR: Ferrel Client role was not found.")
+                await channel.send(
+                    "Your inquiry was submitted successfully, but I "
+                    "couldn't automatically assign your client role. "
+                    "Please contact me so I can fix that. 💜"
+                )
+            elif client_role not in member.roles:
+                try:
+                    await member.add_roles(
+                        client_role,
+                        reason="Completed Ferrel Designs quote application"
+                    )
+                    print(f"Assigned Ferrel Client to {member}.")
+
+                except discord.Forbidden:
+                    print(
+                        "ERROR: Cannot assign Ferrel Client. "
+                        "Check Manage Roles permission and role hierarchy."
+                    )
+                    await channel.send(
+                        "Your inquiry was submitted successfully, but I "
+                        "couldn't automatically assign your client role. "
+                        "Please contact me so I can fix that. 💜"
+                    )
+
             await channel.send(
                 f"Thank you, {member.mention}! 🎉 You've completed "
                 "the initial project questions. I've sent your inquiry "
