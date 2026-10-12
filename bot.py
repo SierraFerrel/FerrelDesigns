@@ -270,7 +270,8 @@ class QuotePanelView(discord.ui.View):
                 "scope, pricing, and next steps."
             )
 
-        except discord.Forbidden:
+        except discord.Forbidden as error:
+            print(f"QUOTE PERMISSION ERROR: {error!r}")
             message = (
                 "I couldn't complete the intake because I lack a required "
                 "Discord permission. Please check my channel permissions."
