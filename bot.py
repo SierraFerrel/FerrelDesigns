@@ -16,8 +16,205 @@ SILVER = 0xC0C4CC
 
 WELCOME_CHANNEL_ID = 1558404692466335807
 NEW_INQUIRIES_CHANNEL_ID = 1558704116581273722
+COMPLETED_WORK_CHANNEL_ID = 1558704266363932682
 
 print("FERREL DESIGNS UPDATED CODE IS LOADING")
+
+
+
+async def close_inquiry_channel(
+    channel: discord.TextChannel,
+    actor: discord.Member
+) -> bool:
+    guild = channel.guild
+    prefix = "ferrel_quote_user:"
+
+    if not channel.topic or not channel.topic.startswith(prefix):
+        await actor.send(
+            "This isn't an active Ferrel Designs inquiry."
+        )
+        return False
+
+    try:
+        client_id = int(channel.topic[len(prefix):])
+    except ValueError:
+        await actor.send("I couldn't identify the inquiry owner.")
+        return False
+
+    if (
+        actor.id != client_id
+        and not actor.guild_permissions.administrator
+    ):
+        await actor.send(
+            "Only the client who opened this inquiry or a server "
+            "administrator can close it."
+        )
+        return False
+
+    client = guild.get_member(client_id)
+
+    if client is None:
+        try:
+            client = await guild.fetch_member(client_id)
+        except discord.NotFound:
+            client = None
+
+    try:
+        # Collect the full conversation before changing the channel.
+        transcript_lines = [
+            f"Ferrel Designs Inquiry Transcript",
+            f"Channel: #{channel.name}",
+            f"Client ID: {client_id}",
+            f"Closed by: {actor} ({actor.id})",
+            f"Transcript generated: {discord.utils.utcnow().isoformat()}",
+            "=" * 70,
+            ""
+        ]
+
+        async for message in channel.history(limit=None, oldest_first=True):
+            timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+            transcript_lines.append(
+                f"[{timestamp}] {message.author} ({message.author.id})"
+            )
+
+            if message.content:
+                transcript_lines.append(message.content)
+
+            for embed in message.embeds:
+                if embed.title:
+                    transcript_lines.append(f"Embed title: {embed.title}")
+                if embed.description:
+                    transcript_lines.append(
+                        f"Embed description: {embed.description}"
+                    )
+
+            for attachment in message.attachments:
+                transcript_lines.append(
+                    f"Attachment: {attachment.filename} — {attachment.url}"
+                )
+
+            transcript_lines.append("")
+
+        transcript_text = "\n".join(transcript_lines)
+        transcript_bytes = transcript_text.encode("utf-8")
+
+        # Build the completed-work record.
+        completed_channel = guild.get_channel(
+            COMPLETED_WORK_CHANNEL_ID
+        )
+
+        if completed_channel is None:
+            completed_channel = await bot.fetch_channel(
+                COMPLETED_WORK_CHANNEL_ID
+            )
+
+        client_mention = client.mention if client else f"User ID: {client_id}"
+
+        summary = make_embed(
+            "Completed Inquiry 📁",
+            (
+                f"**Client:** {client_mention}\n"
+                f"**Inquiry:** `#{channel.name}`\n"
+                f"**Closed by:** {actor.mention}\n\n"
+                "The full conversation transcript is attached."
+            ),
+            PURPLE
+        )
+        summary.set_footer(
+            text="Ferrel Designs | Designed for your community. Built to work."
+        )
+
+        # Store the full transcript in the completed-work channel.
+        await completed_channel.send(
+            embed=summary,
+            file=discord.File(
+                io.BytesIO(transcript_bytes),
+                filename=f"{channel.name}-transcript.txt"
+            )
+        )
+
+        # Send a separate copy to the client, if possible.
+        dm_sent = False
+        if client:
+            try:
+                await client.send(
+                    embed=make_embed(
+                        "Your Inquiry Transcript 💜💙",
+                        (
+                            "Your Ferrel Designs inquiry has been closed. "
+                            "I've attached a copy of the conversation "
+                            "for your records. Thank you for reaching out!"
+                        ),
+                        BLUE
+                    ),
+                    file=discord.File(
+                        io.BytesIO(transcript_bytes),
+                        filename=f"{channel.name}-transcript.txt"
+                    )
+                )
+                dm_sent = True
+            except discord.Forbidden:
+                print(
+                    f"Could not DM transcript to client {client_id}; "
+                    "their DMs may be closed."
+                )
+
+        # Lock the channel after the transcript has been saved.
+        if client:
+            await channel.set_permissions(
+                client,
+                overwrite=discord.PermissionOverwrite(
+                    view_channel=True,
+                    read_message_history=True,
+                    send_messages=False
+                ),
+                reason="Ferrel Designs inquiry closed"
+            )
+
+        await channel.edit(
+            name=f"closed-{channel.name}"[:100],
+            topic=f"closed_ferrel_quote_user:{client_id}",
+            reason=f"Inquiry closed by {actor}"
+        )
+
+        await channel.send(
+            embed=make_embed(
+                "Inquiry Closed 🔒",
+                (
+                    f"This inquiry was closed by {actor.mention}.\n\n"
+                    "The conversation history has been preserved and "
+                    "the transcript has been saved to the completed-work "
+                    "channel."
+                    + (
+                        "\nThe client was also sent a DM copy."
+                        if dm_sent
+                        else "\nThe client could not be sent a DM copy; "
+                             "the transcript is saved in completed work."
+                    )
+                ),
+                SILVER
+            )
+        )
+
+        return True
+
+    except discord.Forbidden as error:
+        print(f"CLOSE PERMISSION ERROR: {error!r}")
+        await actor.send(
+            "I couldn't finish closing this inquiry. Check the bot's "
+            "permissions for the inquiry channel and #completed-work."
+        )
+        return False
+
+    except Exception as error:
+        print(
+            f"Close inquiry failed: {type(error).__name__}: {error}"
+        )
+        await actor.send(
+            "Something went wrong while closing this inquiry. "
+            "Please check the bot logs."
+        )
+        return False
 
 
 class FerrelDesignsBot(commands.Bot):
@@ -139,13 +336,18 @@ class QuotePanelView(discord.ui.View):
                 ephemeral=True
             )
 
-            await channel.send(
-                f"Welcome, {member.mention}! 💜💙\n\n"
-                "I'll guide you through a few questions, one at a time, "
-                "so I can understand your project and prepare a quote.\n"
-                "Please answer each question in this channel. "
-                "You have 10 minutes to answer each one."
-            )
+            
+        await channel.send(
+            f"Welcome, {member.mention}! 💜💙\n\n"
+            "I'll guide you through a few questions, one at a time, "
+        "so I can understand your project and prepare a quote.\n"
+        "Please answer each question in this channel. "
+        "You have 10 minutes to answer each one.\n\n"
+        "If you decide not to continue, you can close this inquiry "
+        "using the button below or by typing `$close`.",
+        view=CloseInquiryView()
+        )
+
 
             questions = [
                 (
@@ -290,6 +492,155 @@ class QuotePanelView(discord.ui.View):
                     "Something went wrong while processing this inquiry. "
                     "I've logged the error so the issue can be investigated."
                 )
+
+
+class CloseInquiryView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @discord.ui.button(
+        label="Confirm Close",
+        style=discord.ButtonStyle.danger,
+        emoji="🔒",
+        custom_id="ferrel_confirm_close"
+    )
+    async def confirm_close(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(
+                "This action is only available inside the server.",
+                ephemeral=True
+            )
+            return
+
+        channel = interaction.channel
+
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message(
+                "This isn't a valid inquiry channel.",
+                ephemeral=True
+            )
+            return
+
+        if not channel.topic or not channel.topic.startswith(
+            "ferrel_quote_user:"
+        ):
+            await interaction.response.send_message(
+                "This inquiry is already closed or isn't valid.",
+                ephemeral=True
+            )
+            return
+
+        client_id = int(
+            channel.topic[len("ferrel_quote_user:"):]
+        )
+
+        actor = interaction.user
+
+        if (
+            actor.id != client_id
+            and not actor.guild_permissions.administrator
+        ):
+            await interaction.response.send_message(
+                "Only the client who opened this inquiry or a server "
+                "administrator can close it.",
+                ephemeral=True
+            )
+            return
+
+        
+        await interaction.response.defer(ephemeral=True)
+
+        success = await close_inquiry_channel(channel, actor)
+
+        if success:
+            await interaction.followup.send(
+                "The inquiry has been closed. The transcript has been archived.",
+                ephemeral=True
+           )
+        else:
+            await interaction.followup.send(
+                "The inquiry could not be fully closed. Please check the bot logs.",
+                ephemeral=True
+            )
+        return
+
+        for child in self.children:
+            child.disabled = True
+
+        try:
+            await interaction.message.edit(view=self)
+        except (discord.HTTPException, AttributeError):
+            pass
+
+    @discord.ui.button(
+        label="Cancel",
+        style=discord.ButtonStyle.secondary,
+        emoji="↩️",
+        custom_id="ferrel_cancel_close"
+    )
+    async def cancel_close(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        await interaction.response.edit_message(
+            content="Inquiry closure cancelled.",
+            embed=None,
+            view=None
+        )
+
+
+@bot.command(name="close")
+async def close_command(ctx: commands.Context):
+    if not isinstance(ctx.author, discord.Member):
+        return
+
+    channel = ctx.channel
+
+    if not isinstance(channel, discord.TextChannel):
+        await ctx.reply("This command only works in a text channel.")
+        return
+
+    if not channel.topic or not channel.topic.startswith(
+        "ferrel_quote_user:"
+    ):
+        await ctx.reply(
+            "This isn't an active Ferrel Designs inquiry channel."
+        )
+        return
+
+    client_id = int(
+        channel.topic[len("ferrel_quote_user:"):]
+    )
+
+    if (
+        ctx.author.id != client_id
+        and not ctx.author.guild_permissions.administrator
+    ):
+        await ctx.reply(
+            "Only the client who opened this inquiry or a server "
+            "administrator can close it."
+        )
+        return
+
+    view = CloseInquiryView()
+
+    await ctx.send(
+        embed=make_embed(
+            "Close This Inquiry?",
+            (
+                "Are you sure you want to close this inquiry?\n\n"
+                "Closing will lock the conversation and preserve "
+                "the existing history."
+            ),
+            PURPLE
+        ),
+        view=view
+    )
 
 
 @bot.event
