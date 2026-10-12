@@ -13,6 +13,8 @@ PURPLE = 0x7B3FF2
 BLUE = 0x3B82F6
 SILVER = 0xC0C4CC
 
+WELCOME_CHANNEL_ID = 1558404692466335807
+
 print("FERREL DESIGNS UPDATED CODE IS LOADING")
 
 class FerrelDesignsBot(commands.Bot):
@@ -35,6 +37,7 @@ class FerrelDesignsBot(commands.Bot):
 
 
 intents = discord.Intents.default()
+intents.members = True
 
 bot = FerrelDesignsBot(
     command_prefix="!",
@@ -45,6 +48,48 @@ bot = FerrelDesignsBot(
 @bot.event
 async def on_ready():
     print(f"Ferrel Designs bot is online as {bot.user}")
+
+
+@bot.event
+async def on_member_join(member: discord.Member):
+    channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+
+    if channel is None:
+        print(
+            f"Welcome channel {WELCOME_CHANNEL_ID} "
+            f"was not found in {member.guild.name}."
+        )
+        return
+
+    embed = make_embed(
+        "Welcome to Ferrel Designs 💜💙",
+        (
+            f"Welcome to Ferrel Designs, {member.mention}!\n\n"
+            "Your community deserves a Discord server "
+            "that looks great and works well.\n\n"
+            "I'm here to help you build an organized, ready-to-use "
+            "Discord server tailored to your community's needs. "
+            "From roles and permissions to bots, automation, and branding, "
+            "I want to make managing your community easier.\n\n"
+            "**Explore my services:**\n"
+            "🛠️ See what I offer\n"
+            "💰 Review my pricing\n"
+            "📝 Request a project quote\n\n"
+            "I'm excited to hear about your project and help bring "
+            "your vision to life!"
+        ),
+        PURPLE
+    )
+
+    await channel.send(
+        content=f"Welcome, {member.mention}! 💜",
+        embed=embed
+    )
+
+    print(
+        f"Sent welcome message for {member} "
+        f"in #{channel.name}."
+    )
 
 
 def make_embed(title, description, color):
