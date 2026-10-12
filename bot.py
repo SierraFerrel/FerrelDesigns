@@ -450,6 +450,7 @@ class QuotePanelView(discord.ui.View):
             channel = await guild.create_text_channel(
                 name=f"quote-{member.name}".lower()[:90],
                 topic=f"ferrel_quote_user:{member.id}",
+                category=discord.Object(id=1559100928018350103),
                 overwrites=overwrites,
                 reason=f"Quote inquiry opened by {member}"
             )
