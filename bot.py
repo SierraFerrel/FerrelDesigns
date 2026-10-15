@@ -1,4 +1,3 @@
-
 import os
 import io
 import asyncio
@@ -27,7 +26,6 @@ ACTIVE_TICKETS_CATEGORY_ID = 1559100928018350103
 RULES_REACTION = "💜"
 
 
-
 def make_embed(title, description, color=PURPLE):
     embed = discord.Embed(
         title=title,
@@ -50,10 +48,10 @@ class FerrelDesignsBot(commands.Bot):
         self.add_view(QuotePanelView())
         self.add_view(GeneralInquiryPanelView())
         self.add_view(CloseInquiryView())
-        
+
         print(
-    "LOCAL SLASH COMMANDS:",
-    [command.name for command in self.tree.get_commands()]
+            "LOCAL SLASH COMMANDS:",
+            [command.name for command in self.tree.get_commands()]
         )
         print("Starting Ferrel Designs command synchronization...")
 
@@ -76,9 +74,9 @@ bot = FerrelDesignsBot(
     intents=intents
 )
 
+
 @bot.event
 async def on_raw_reaction_add(payload):
-    # Only process the official rules message in the rules channel
     if payload.guild_id is None:
         return
 
@@ -91,7 +89,6 @@ async def on_raw_reaction_add(payload):
     if str(payload.emoji) != RULES_REACTION:
         return
 
-    # Ignore reactions added by bots
     if bot.user and payload.user_id == bot.user.id:
         return
 
@@ -148,10 +145,7 @@ async def close_inquiry_channel(
         return False
 
     prefix = next(
-        (
-            p for p in prefixes
-            if channel.topic.startswith(p)
-        ),
+        (p for p in prefixes if channel.topic.startswith(p)),
         None
     )
 
@@ -240,10 +234,7 @@ async def close_inquiry_channel(
                 COMPLETED_WORK_CHANNEL_ID
             )
 
-        if not isinstance(
-            completed_channel,
-            discord.TextChannel
-        ):
+        if not isinstance(completed_channel, discord.TextChannel):
             raise RuntimeError(
                 "The completed-work ID is not a text channel."
             )
@@ -325,7 +316,9 @@ async def close_inquiry_channel(
         print(
             f"CLOSE INQUIRY ERROR: {type(error).__name__}: {error}"
         )
+        traceback.print_exc()
         return False
+
 
 class CloseInquiryView(discord.ui.View):
     def __init__(self):
@@ -342,10 +335,7 @@ class CloseInquiryView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button
     ):
-        if not isinstance(
-            interaction.user,
-            discord.Member
-        ):
+        if not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message(
                 "This action is only available inside the server.",
                 ephemeral=True
@@ -354,16 +344,13 @@ class CloseInquiryView(discord.ui.View):
 
         channel = interaction.channel
 
-        if not isinstance(
-            channel,
-            discord.TextChannel
-        ):
+        if not isinstance(channel, discord.TextChannel):
             await interaction.response.send_message(
                 "This isn't a valid inquiry channel.",
                 ephemeral=True
             )
             return
-       
+
         prefixes = (
             "ferrel_quote_user:",
             "ferrel_general_user:"
@@ -384,9 +371,7 @@ class CloseInquiryView(discord.ui.View):
         )
 
         try:
-            client_id = int(
-                channel.topic[len(prefix):]
-            )
+            client_id = int(channel.topic[len(prefix):])
         except ValueError:
             await interaction.response.send_message(
                 "I couldn't identify the inquiry owner.",
@@ -409,10 +394,7 @@ class CloseInquiryView(discord.ui.View):
 
         await interaction.response.defer(ephemeral=True)
 
-        success = await close_inquiry_channel(
-            channel,
-            actor
-        )
+        success = await close_inquiry_channel(channel, actor)
 
         if success:
             for child in self.children:
@@ -420,17 +402,13 @@ class CloseInquiryView(discord.ui.View):
 
             try:
                 await interaction.message.edit(view=self)
-            except (
-                discord.HTTPException,
-                AttributeError
-            ):
+            except (discord.HTTPException, AttributeError):
                 pass
 
             await interaction.followup.send(
                 "The inquiry has been closed and the transcript archived.",
                 ephemeral=True
             )
-
         else:
             await interaction.followup.send(
                 "The inquiry could not be fully closed. "
@@ -469,6 +447,11 @@ class GeneralInquiryModal(discord.ui.Modal, title="General Inquiry"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(
+            ephemeral=True,
+            thinking=True
+        )
+
         await create_general_inquiry_ticket(
             interaction,
             str(self.inquiry.value).strip()
@@ -492,6 +475,7 @@ class GeneralInquiryPanelView(discord.ui.View):
     ):
         await interaction.response.send_modal(GeneralInquiryModal())
 
+
 async def create_general_inquiry_ticket(
     interaction: discord.Interaction,
     inquiry_text: str
@@ -500,7 +484,7 @@ async def create_general_inquiry_ticket(
     member = interaction.user
 
     if guild is None or not isinstance(member, discord.Member):
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Please use this application inside the Ferrel Designs server.",
             ephemeral=True
         )
@@ -514,16 +498,11 @@ async def create_general_inquiry_ticket(
     )
 
     if existing:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"You already have an open general inquiry: {existing.mention}",
             ephemeral=True
         )
         return
-
-    await interaction.response.defer(
-        ephemeral=True,
-        thinking=True
-    )
 
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(
@@ -582,7 +561,8 @@ async def create_general_inquiry_ticket(
                     "details or follow-up messages."
                 ),
                 PURPLE
-            )
+            ),
+            view=CloseInquiryView()
         )
 
         await interaction.followup.send(
@@ -595,13 +575,19 @@ async def create_general_inquiry_ticket(
             "GENERAL INQUIRY CREATION ERROR: "
             f"{type(error).__name__}: {error}"
         )
+        traceback.print_exc()
 
-        await interaction.followup.send(
-            "I couldn't create your general inquiry. "
-            "Please contact me directly.",
-            ephemeral=True
-        )
-
+        try:
+            await interaction.followup.send(
+                "I couldn't create your general inquiry. "
+                "Please contact me directly.",
+                ephemeral=True
+            )
+        except discord.HTTPException as followup_error:
+            print(
+                "GENERAL INQUIRY ERROR MESSAGE FAILED: "
+                f"{type(followup_error).__name__}: {followup_error}"
+            )
 
 class QuotePanelView(discord.ui.View):
     def __init__(self):
@@ -630,7 +616,7 @@ class QuotePanelView(discord.ui.View):
                 ephemeral=True
             )
             return
-            
+
         community_role = guild.get_role(COMMUNITY_ROLE_ID)
 
         if community_role is None:
@@ -649,7 +635,6 @@ class QuotePanelView(discord.ui.View):
                 ephemeral=True
             )
             return
-
 
         existing = discord.utils.get(
             guild.text_channels,
@@ -700,10 +685,17 @@ class QuotePanelView(discord.ui.View):
         channel = None
 
         try:
+            category = guild.get_channel(ACTIVE_TICKETS_CATEGORY_ID)
+
+            if not isinstance(category, discord.CategoryChannel):
+                raise RuntimeError(
+                    "The Active Tickets category was not found."
+                )
+
             channel = await guild.create_text_channel(
                 name=f"quote-{member.name}".lower()[:90],
                 topic=f"ferrel_quote_user:{member.id}",
-                category=discord.Object(id=1559100928018350103),
+                category=category,
                 overwrites=overwrites,
                 reason=f"Quote inquiry opened by {member}"
             )
@@ -766,11 +758,7 @@ class QuotePanelView(discord.ui.View):
 
             for title, question in questions:
                 await channel.send(
-                    embed=make_embed(
-                        title,
-                        question,
-                        PURPLE
-                    )
+                    embed=make_embed(title, question, PURPLE)
                 )
 
                 def check(message):
@@ -786,7 +774,6 @@ class QuotePanelView(discord.ui.View):
                         check=check,
                         timeout=600
                     )
-
                 except asyncio.TimeoutError:
                     await channel.send(
                         f"{member.mention}, I haven't received an answer "
@@ -820,10 +807,7 @@ class QuotePanelView(discord.ui.View):
                 "Timeline"
             ]
 
-            for name, answer in zip(
-                field_names,
-                answers
-            ):
+            for name, answer in zip(field_names, answers):
                 summary.add_field(
                     name=name,
                     value=answer[:1024],
@@ -847,11 +831,9 @@ class QuotePanelView(discord.ui.View):
                     "The new-inquiries ID is not a text channel."
                 )
 
-            await inquiries_channel.send(
-                embed=summary
-            )
+            await inquiries_channel.send(embed=summary)
 
-            # Assign Ferrel Client without removing existing roles
+            # Assign Ferrel Client without removing existing roles.
             client_role = guild.get_role(CLIENT_ROLE_ID)
 
             if client_role is None:
@@ -887,7 +869,7 @@ class QuotePanelView(discord.ui.View):
                 "scope, pricing, and next steps."
             )
 
-        except discord.Forbidden as error:
+        except discord.Forbidden:
             print("QUOTE PERMISSION ERROR:")
             traceback.print_exc()
 
@@ -909,6 +891,7 @@ class QuotePanelView(discord.ui.View):
             print(
                 f"QUOTE INTAKE ERROR: {type(error).__name__}: {error}"
             )
+            traceback.print_exc()
 
             try:
                 if channel is not None:
@@ -933,41 +916,30 @@ async def close_command(ctx: commands.Context):
 
     channel = ctx.channel
 
-    if not isinstance(
-        channel,
-        discord.TextChannel
-    ):
+    if not isinstance(channel, discord.TextChannel):
+        await ctx.reply("This command only works in a text channel.")
+        return
+
+    prefixes = (
+        "ferrel_quote_user:",
+        "ferrel_general_user:",
+    )
+
+    if not channel.topic or not channel.topic.startswith(prefixes):
         await ctx.reply(
-            "This command only works in a text channel."
+            "This isn't an active Ferrel Designs inquiry channel."
         )
         return
 
-    
-        prefixes = (
-            "ferrel_quote_user:",
-            "ferrel_general_user:"
-        )
+    prefix = next(
+        p for p in prefixes if channel.topic.startswith(p)
+    )
 
-        if (
-            not channel.topic
-            or not channel.topic.startswith(prefixes)
-        ):
-            await ctx.reply(
-                "This isn't an active Ferrel Designs inquiry channel."
-            )
-            return
-
-        prefix = next(
-            p for p in prefixes if channel.topic.startswith(p)
-        )
-
-        try:
-            client_id = int(
-                channel.topic[len(prefix):]
-            )
-        except ValueError:
-            await ctx.reply("I couldn't identify the inquiry owner.")
-            return
+    try:
+        client_id = int(channel.topic[len(prefix):])
+    except ValueError:
+        await ctx.reply("I couldn't identify the inquiry owner.")
+        return
 
     if (
         ctx.author.id != client_id
@@ -984,15 +956,13 @@ async def close_command(ctx: commands.Context):
             "Close This Inquiry?",
             (
                 "Are you sure you want to close this inquiry?\n\n"
-                "Closing will lock the conversation and preserve "
-                "the existing history."
+                "Closing will archive the conversation transcript "
+                "and delete this channel."
             ),
             PURPLE
         ),
         view=CloseInquiryView()
     )
-
-
 @bot.event
 async def on_member_join(member: discord.Member):
     channel = member.guild.get_channel(
@@ -1050,9 +1020,7 @@ async def ping(interaction: discord.Interaction):
     name="post-quote-panel",
     description="Post the Ferrel Designs quote request panel."
 )
-@app_commands.checks.has_permissions(
-    administrator=True
-)
+@app_commands.checks.has_permissions(administrator=True)
 async def post_quote_panel(
     interaction: discord.Interaction
 ):
@@ -1076,6 +1044,7 @@ async def post_quote_panel(
         embed=embed,
         view=QuotePanelView()
     )
+
 
 @bot.tree.command(
     name="post-general-inquiry-panel",
