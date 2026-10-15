@@ -137,7 +137,8 @@ async def close_inquiry_channel(
     channel: discord.TextChannel,
     actor: discord.Member
 ) -> bool:
-   
+    guild = channel.guild
+
     prefixes = (
         "ferrel_quote_user:",
         "ferrel_general_user:"
@@ -154,8 +155,8 @@ async def close_inquiry_channel(
         None
     )
 
-if prefix is None:
-    return False
+    if prefix is None:
+        return False
 
     try:
         client_id = int(channel.topic[len(prefix):])
@@ -270,8 +271,6 @@ if prefix is None:
             )
         )
 
-        dm_sent = False
-
         if client:
             try:
                 await client.send(
@@ -289,8 +288,6 @@ if prefix is None:
                         filename=filename
                     )
                 )
-                dm_sent = True
-
             except discord.Forbidden:
                 print(
                     f"Could not DM transcript to client {client_id}."
@@ -324,7 +321,6 @@ if prefix is None:
 
         return True
 
-    
     except Exception as error:
         print(
             f"CLOSE INQUIRY ERROR: {type(error).__name__}: {error}"
