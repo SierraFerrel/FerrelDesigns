@@ -966,10 +966,8 @@ async def close_command(ctx: commands.Context):
                 channel.topic[len(prefix):]
             )
         except ValueError:
-            await ctx.reply(
-                "I couldn't identify the inquiry owner."
-    )
-    return
+            await ctx.reply("I couldn't identify the inquiry owner.")
+            return
 
     if (
         ctx.author.id != client_id
