@@ -963,13 +963,13 @@ async def close_command(ctx: commands.Context):
             p for p in prefixes if channel.topic.startswith(p)
         )
 
-try:
-    client_id = int(
-        channel.topic[len(prefix):]
-    )
-except ValueError:
-    await ctx.reply(
-        "I couldn't identify the inquiry owner."
+        try:
+            client_id = int(
+                channel.topic[len(prefix):]
+            )
+        except ValueError:
+            await ctx.reply(
+                "I couldn't identify the inquiry owner."
     )
     return
 
