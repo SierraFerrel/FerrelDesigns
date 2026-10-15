@@ -36,7 +36,15 @@ def make_embed(title, description, color=PURPLE):
         text="Ferrel Designs | Designed for your community. Built to work."
     )
     return embed
+    
+# Cursive font for ticket channel names
+CURSIVE_MAP = str.maketrans(
+    "abcdefghijklmnopqrstuvwxyz",
+    "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏"
+)
 
+def cursive(text: str) -> str:
+    return text.lower().translate(CURSIVE_MAP)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -541,7 +549,7 @@ async def create_general_inquiry_ticket(
             )
 
         channel = await guild.create_text_channel(
-            name=f"general-{member.name}".lower()[:90],
+            name=cursive(f"general-{member.name}")[:90],
             topic=topic,
             category=category,
             overwrites=overwrites,
@@ -693,7 +701,7 @@ class QuotePanelView(discord.ui.View):
                 )
 
             channel = await guild.create_text_channel(
-                name=f"quote-{member.name}".lower()[:90],
+                name=cursive(f"quote-{member.name}")[:90],
                 topic=f"ferrel_quote_user:{member.id}",
                 category=category,
                 overwrites=overwrites,
