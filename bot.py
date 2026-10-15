@@ -48,7 +48,9 @@ intents.message_content = True
 class FerrelDesignsBot(commands.Bot):
     async def setup_hook(self):
         self.add_view(QuotePanelView())
-
+        self.add_view(GeneralInquiryPanelView())
+        self.add_view(CloseInquiryView())
+        
         print("Starting Ferrel Designs command synchronization...")
 
         try:
@@ -131,10 +133,22 @@ async def close_inquiry_channel(
     channel: discord.TextChannel,
     actor: discord.Member
 ) -> bool:
-    prefix = "ferrel_quote_user:"
+   
+    prefixes = (
+        "ferrel_quote_user:",
+        "ferrel_general_user:"
+    )
     guild = channel.guild
 
-    if not channel.topic or not channel.topic.startswith(prefix):
+    if not channel.topic:
+        return False
+
+    prefix = next(
+        (p for p in prefixes if channel.topic.startswith(p)),
+        None
+    )
+
+    if prefix is None:
         return False
 
     try:
@@ -313,7 +327,7 @@ async def close_inquiry_channel(
 
 class CloseInquiryView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=120)
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Confirm Close",
@@ -347,18 +361,25 @@ class CloseInquiryView(discord.ui.View):
                 ephemeral=True
             )
             return
-
-        prefix = "ferrel_quote_user:"
+       
+        prefixes = (
+            "ferrel_quote_user:",
+            "ferrel_general_user:"
+        )
 
         if (
             not channel.topic
-            or not channel.topic.startswith(prefix)
+            or not channel.topic.startswith(prefixes)
         ):
             await interaction.response.send_message(
                 "This inquiry is already closed or isn't valid.",
                 ephemeral=True
             )
             return
+
+        prefix = next(
+            p for p in prefixes if channel.topic.startswith(p)
+        )
 
         try:
             client_id = int(
@@ -430,6 +451,153 @@ class CloseInquiryView(discord.ui.View):
             content="Inquiry closure cancelled.",
             embed=None,
             view=None
+        )
+
+
+class GeneralInquiryModal(discord.ui.Modal, title="General Inquiry"):
+    inquiry = discord.ui.TextInput(
+        label="What can I help you with today?",
+        placeholder=(
+            "Tell me about your question, partnership, "
+            "promotion, report, or other inquiry..."
+        ),
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=2000
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await create_general_inquiry_ticket(
+            interaction,
+            str(self.inquiry.value).strip()
+        )
+
+
+class GeneralInquiryPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Open General Inquiry",
+        style=discord.ButtonStyle.primary,
+        emoji="💬",
+        custom_id="ferrel_general_inquiry"
+    )
+    async def open_general_inquiry(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        await interaction.response.send_modal(GeneralInquiryModal())
+
+async def create_general_inquiry_ticket(
+    interaction: discord.Interaction,
+    inquiry_text: str
+):
+    guild = interaction.guild
+    member = interaction.user
+
+    if guild is None or not isinstance(member, discord.Member):
+        await interaction.response.send_message(
+            "Please use this application inside the Ferrel Designs server.",
+            ephemeral=True
+        )
+        return
+
+    topic = f"ferrel_general_user:{member.id}"
+
+    existing = discord.utils.get(
+        guild.text_channels,
+        topic=topic
+    )
+
+    if existing:
+        await interaction.response.send_message(
+            f"You already have an open general inquiry: {existing.mention}",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.defer(
+        ephemeral=True,
+        thinking=True
+    )
+
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(
+            view_channel=False
+        ),
+        member: discord.PermissionOverwrite(
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True
+        )
+    }
+
+    bot_member = guild.me
+    if bot_member:
+        overwrites[bot_member] = discord.PermissionOverwrite(
+            view_channel=True,
+            send_messages=True,
+            read_message_history=True,
+            manage_channels=True
+        )
+
+    for role in guild.roles:
+        if role.permissions.administrator:
+            overwrites[role] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True
+            )
+
+    try:
+        category = guild.get_channel(ACTIVE_TICKETS_CATEGORY_ID)
+
+        if not isinstance(category, discord.CategoryChannel):
+            raise RuntimeError(
+                "The Active Tickets category was not found."
+            )
+
+        channel = await guild.create_text_channel(
+            name=f"general-{member.name}".lower()[:90],
+            topic=topic,
+            category=category,
+            overwrites=overwrites,
+            reason=f"General inquiry opened by {member}"
+        )
+
+        await channel.send(
+            embed=make_embed(
+                "New General Inquiry 💬",
+                (
+                    f"Welcome, {member.mention}! 💜💙\n\n"
+                    "Thank you for reaching out to Ferrel Designs. "
+                    "I've received your inquiry and will review it "
+                    "as soon as I can.\n\n"
+                    f"**Your inquiry:**\n{inquiry_text}\n\n"
+                    "Please use this private channel for any additional "
+                    "details or follow-up messages."
+                ),
+                PURPLE
+            )
+        )
+
+        await interaction.followup.send(
+            f"Your private general inquiry is ready: {channel.mention}",
+            ephemeral=True
+        )
+
+    except Exception as error:
+        print(
+            "GENERAL INQUIRY CREATION ERROR: "
+            f"{type(error).__name__}: {error}"
+        )
+
+        await interaction.followup.send(
+            "I couldn't create your general inquiry. "
+            "Please contact me directly.",
+            ephemeral=True
         )
 
 
@@ -772,26 +940,34 @@ async def close_command(ctx: commands.Context):
         )
         return
 
-    prefix = "ferrel_quote_user:"
+    
+        prefixes = (
+            "ferrel_quote_user:",
+            "ferrel_general_user:"
+        )
 
-    if (
-        not channel.topic
-        or not channel.topic.startswith(prefix)
-    ):
-        await ctx.reply(
-            "This isn't an active Ferrel Designs inquiry channel."
-        )
-        return
+        if (
+            not channel.topic
+            or not channel.topic.startswith(prefixes)
+        ):
+            await ctx.reply(
+                "This isn't an active Ferrel Designs inquiry channel."
+            )
+            return
 
-    try:
-        client_id = int(
-            channel.topic[len(prefix):]
+        prefix = next(
+            p for p in prefixes if channel.topic.startswith(p)
         )
-    except ValueError:
-        await ctx.reply(
-            "I couldn't identify the inquiry owner."
-        )
-        return
+
+try:
+    client_id = int(
+        channel.topic[len(prefix):]
+    )
+except ValueError:
+    await ctx.reply(
+        "I couldn't identify the inquiry owner."
+    )
+    return
 
     if (
         ctx.author.id != client_id
@@ -899,6 +1075,36 @@ async def post_quote_panel(
     await interaction.response.send_message(
         embed=embed,
         view=QuotePanelView()
+    )
+
+
+@bot.tree.command(
+    name="post-general-inquiry-panel",
+    description="Post the General Inquiry application panel."
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def post_general_inquiry_panel(
+    interaction: discord.Interaction
+):
+    embed = make_embed(
+        "General Inquiries 💬",
+        (
+            "Have a question, partnership idea, promotion opportunity, "
+            "or something else you'd like to discuss?\n\n"
+            "You can also use this application to report misuse of "
+            "Ferrel Designs work or raise any other concerns.\n\n"
+            "**How it works:**\n"
+            "• Click the button below.\n"
+            "• Describe your inquiry in the form.\n"
+            "• A private ticket will be created for you.\n\n"
+            "I'm happy to hear from you! 💜💙"
+        ),
+        PURPLE
+    )
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=GeneralInquiryPanelView()
     )
 
 
