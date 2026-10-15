@@ -142,18 +142,21 @@ async def close_inquiry_channel(
         "ferrel_quote_user:",
         "ferrel_general_user:"
     )
-    guild = channel.guild
 
     if not channel.topic:
         return False
 
     prefix = next(
-        (p for p in prefixes if channel.topic.startswith(p)),
+        (
+            p for p in prefixes
+            if channel.topic.startswith(p)
+        ),
         None
     )
 
-    if prefix is None:
-        return False
+if prefix is None:
+    return False
+```
 
     try:
         client_id = int(channel.topic[len(prefix):])
