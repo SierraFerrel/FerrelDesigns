@@ -156,7 +156,6 @@ async def close_inquiry_channel(
 
 if prefix is None:
     return False
-```
 
     try:
         client_id = int(channel.topic[len(prefix):])
