@@ -51,6 +51,10 @@ class FerrelDesignsBot(commands.Bot):
         self.add_view(GeneralInquiryPanelView())
         self.add_view(CloseInquiryView())
         
+        print(
+    "LOCAL SLASH COMMANDS:",
+    [command.name for command in self.tree.get_commands()]
+        )
         print("Starting Ferrel Designs command synchronization...")
 
         try:
@@ -1076,7 +1080,6 @@ async def post_quote_panel(
         embed=embed,
         view=QuotePanelView()
     )
-
 
 @bot.tree.command(
     name="post-general-inquiry-panel",
